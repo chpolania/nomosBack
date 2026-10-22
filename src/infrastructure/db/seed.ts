@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { pool } from './pool';
+import { createConnection } from 'mysql2/promise';
+import config from '../../config/config';
 import { BcryptHasher } from '../security/bcrypt-hasher';
 
 const PERMISSIONS: Array<[string, string]> = [
@@ -11,36 +12,40 @@ const PERMISSIONS: Array<[string, string]> = [
 ];
 
 async function seed() {
-    await pool.query(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
+    const { HOST, PORT, USER, PASSWORD, NAME } = config.dbConfig;
+    const conn = await createConnection({
+        host: HOST, port: PORT, user: USER, password: PASSWORD, multipleStatements: true,
+    });
+    try {
+        await conn.query(`CREATE DATABASE IF NOT EXISTS \`${NAME}\``);
+        await conn.query(`USE \`${NAME}\``);
+        await conn.query(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
 
-    for (const [name, description] of PERMISSIONS) {
-        await pool.query(
-            'INSERT INTO permissions (name, description) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING',
-            [name, description]);
-    }
-    const { rows: [role] } = await pool.query(
-        `INSERT INTO roles (name) VALUES ('Admin')
-         ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id`);
-    await pool.query(
-        `INSERT INTO role_permissions (role_id, permission_id)
-         SELECT $1, id FROM permissions ON CONFLICT DO NOTHING`, [role.id]);
+        for (const [name, description] of PERMISSIONS) {
+            await conn.query('INSERT IGNORE INTO permissions (name, description) VALUES (?, ?)', [name, description]);
+        }
+        await conn.query("INSERT IGNORE INTO roles (name) VALUES ('Admin')");
+        await conn.query(
+            `INSERT IGNORE INTO role_permissions (role_id, permission_id)
+             SELECT (SELECT id FROM roles WHERE name = 'Admin'), id FROM permissions`);
 
-    const username = process.env.ADMIN_USERNAME ?? 'admin';
-    const email = process.env.ADMIN_EMAIL ?? 'admin@nomos.co';
-    const password = process.env.ADMIN_PASSWORD;
-    if (!password) {
-        throw new Error('ADMIN_PASSWORD is required');
+        const username = process.env.ADMIN_USERNAME ?? 'admin';
+        const email = process.env.ADMIN_EMAIL ?? 'admin@nomos.co';
+        const password = process.env.ADMIN_PASSWORD;
+        if (!password) {
+            throw new Error('ADMIN_PASSWORD is required');
+        }
+        await conn.query(
+            'INSERT IGNORE INTO users (username, email, password_hash) VALUES (?, ?, ?)',
+            [username, email, await new BcryptHasher().hash(password)]);
+        await conn.query(
+            `INSERT IGNORE INTO user_roles (user_id, role_id)
+             SELECT (SELECT id FROM users WHERE username = ?), (SELECT id FROM roles WHERE name = 'Admin')`,
+            [username]);
+        console.log(`Seed completed. Admin user: ${username}`);
+    } finally {
+        await conn.end();
     }
-    const { rows: [user] } = await pool.query(
-        `INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)
-         ON CONFLICT (username) DO UPDATE SET username = EXCLUDED.username RETURNING id`,
-        [username, email, await new BcryptHasher().hash(password)]);
-    await pool.query(
-        'INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [user.id, role.id]);
-    console.log(`Seed completed. Admin user: ${username}`);
 }
 
-seed()
-    .catch((e) => { console.error(e); process.exitCode = 1; })
-    .finally(() => pool.end());
+seed().catch((e) => { console.error(e); process.exitCode = 1; });

@@ -8,6 +8,10 @@ export class UserService {
         private readonly hasher: IPasswordHasher,
     ) {}
 
+    async listUsers(filter?: string): Promise<IPublicUser[]> {
+        return this.users.list(filter?.trim() || undefined);
+    }
+
     async createUser(UUID: string, username: string, email: string, password: string): Promise<IPublicUser> {
         if (await this.users.findByUsername(username)) {
             throw new CustomError(UUID, 409, 'Username already exists');
@@ -16,7 +20,7 @@ export class UserService {
         try {
             return await this.users.create(username, email, passwordHash);
         } catch (error: any) {
-            if (error.code === '23505') {
+            if (error.code === 'ER_DUP_ENTRY') {
                 throw new CustomError(UUID, 409, 'Username or email already exists');
             }
             throw error;

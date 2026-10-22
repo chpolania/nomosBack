@@ -2,9 +2,9 @@ import 'dotenv/config';
 
 const dbConfig = {
     HOST: process.env.DB_HOST ?? 'localhost',
-    PORT: parseInt(process.env.DB_PORT ?? '5432', 10),
+    PORT: parseInt(process.env.DB_PORT ?? '3306', 10),
     NAME: process.env.DB_NAME ?? 'NomosDB',
-    USER: process.env.DB_USER ?? 'postgres',
+    USER: process.env.DB_USER ?? 'root',
     PASSWORD: process.env.DB_PASSWORD ?? '',
 }
 

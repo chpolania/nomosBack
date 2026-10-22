@@ -20,6 +20,10 @@ export class RoleService {
         return this.roles.create(name);
     }
 
+    async listRoles(filter?: string): Promise<IRole[]> {
+        return this.roles.list(filter?.trim() || undefined);
+    }
+
     async assignRoleToUser(UUID: string, userId: number, roleId: number): Promise<{ userId: number; roleId: number }> {
         if (!(await this.users.findById(userId))) {
             throw new CustomError(UUID, 404, 'User not found');

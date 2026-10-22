@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response, Router } from 'express';
-import { body, param, validationResult } from 'express-validator';
+import { body, param, query, validationResult } from 'express-validator';
 
 import { AuthService } from '../../application/use-cases/auth.service';
 import { RoleService } from '../../application/use-cases/role.service';
@@ -51,6 +51,13 @@ export class AuthController {
                 res.status(204).send();
             }));
 
+        this.router.get('/users', auth,
+            query('username').optional().isString().isLength({ max: 50 }),
+            validate,
+            this.wrap(async (req, res) => {
+                res.status(200).json(await this.userService.listUsers(req.query.username as string | undefined));
+            }));
+
         this.router.post('/users', auth, requirePermission('create_user'),
             body('username').isString().trim().isLength({ min: 3, max: 50 }),
             body('email').isEmail().isLength({ max: 100 }),
@@ -59,6 +66,13 @@ export class AuthController {
             this.wrap(async (req, res, UUID) => {
                 const { username, email, password } = req.body;
                 res.status(201).json(await this.userService.createUser(UUID, username, email, password));
+            }));
+
+        this.router.get('/roles', auth,
+            query('filter').optional().isString().isLength({ max: 50 }),
+            validate,
+            this.wrap(async (req, res) => {
+                res.status(200).json(await this.roleService.listRoles(req.query.filter as string | undefined));
             }));
 
         this.router.post('/roles', auth, requirePermission('create_role'),

@@ -10,6 +10,7 @@ export interface IUserRepository {
     create(username: string, email: string, passwordHash: string): Promise<IPublicUser>;
     findByUsername(username: string): Promise<IUser | null>;
     findById(id: number): Promise<IPublicUser | null>;
+    list(filter?: string): Promise<IPublicUser[]>;
     getRoleNames(userId: number): Promise<string[]>;
     getPermissionNames(userId: number): Promise<string[]>;
 }
@@ -18,6 +19,7 @@ export interface IRoleRepository {
     findByName(name: string): Promise<IRole | null>;
     findById(id: number): Promise<IRole | null>;
     create(name: string): Promise<IRole>;
+    list(filter?: string): Promise<IRole[]>;
     assignToUser(userId: number, roleId: number): Promise<boolean>;
     assignPermission(roleId: number, permissionId: number): Promise<boolean>;
 }
